@@ -1,5 +1,5 @@
 QT       += core gui
-
+LIBS += -lws2_32
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 CONFIG += c++17
