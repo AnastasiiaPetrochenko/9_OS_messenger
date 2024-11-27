@@ -8,6 +8,13 @@ Client::Client()
     this->connection      = NULL;
 }
 
+int Client::SendSocketMessage(std::string message){
+
+    int res = send(connection, message.c_str(), message.size(), 0) == SOCKET_ERROR;
+    return res;
+
+
+}
 
 bool Client::OpenSocket(const char *ip, int port)
 {

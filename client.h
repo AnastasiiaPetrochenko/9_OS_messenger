@@ -25,6 +25,8 @@ public:
 
     bool OpenSocket(const char *ip = LOCAL_IP_ADDRESS, int port = DEFAULT_PORT);
     void CloseSocket();
+
+    int SendSocketMessage(std::string message);
 };
 
 #endif // CLIENT_H

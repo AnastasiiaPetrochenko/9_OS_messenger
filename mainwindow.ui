@@ -224,6 +224,19 @@ font: 700 9pt &quot;Segoe UI&quot;;</string>
      <bool>true</bool>
     </property>
    </widget>
+   <widget class="QLabel" name="TextTest">
+    <property name="geometry">
+     <rect>
+      <x>320</x>
+      <y>10</y>
+      <width>61</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>TextLabel</string>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

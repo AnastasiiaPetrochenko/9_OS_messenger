@@ -1,6 +1,8 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "client.h"
+
 #include <QMainWindow>
 
 QT_BEGIN_NAMESPACE
@@ -12,6 +14,8 @@ QT_END_NAMESPACE
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
+
+    Client *client;
 
 public:
     MainWindow(QWidget *parent = nullptr);

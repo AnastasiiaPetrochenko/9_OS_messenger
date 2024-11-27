@@ -15,6 +15,13 @@ MainWindow::~MainWindow()
 
 void MainWindow::on_connectButton_clicked()
 {
+    client = new Client();
+
+    client->OpenSocket();
+
+    int res = client->SendSocketMessage("Hello");
+    ui->TextTest->setText(QString::number(res));
+
     // action
 }
 
