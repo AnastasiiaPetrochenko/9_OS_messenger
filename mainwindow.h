@@ -5,6 +5,7 @@
 
 #include <QMainWindow>
 
+
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;
@@ -17,12 +18,16 @@ class MainWindow : public QMainWindow
 
     Client *client;
 
+    QThread *WaitMessageS;
+
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
 private slots:
     void on_connectButton_clicked();
+
+    void on_pushButton_clicked();
 
 private:
     Ui::MainWindow *ui;

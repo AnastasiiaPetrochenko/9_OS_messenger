@@ -25,3 +25,10 @@ void MainWindow::on_connectButton_clicked()
     // action
 }
 
+
+void MainWindow::on_pushButton_clicked()
+{
+    std::string message = (ui->lineEdit->text()).toStdString();
+    int res = client->SendSocketMessage(message);
+}
+
