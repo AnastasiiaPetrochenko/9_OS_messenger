@@ -1,19 +1,16 @@
 #include "client.h"
 
 
-
-Client::Client(QString name)
-    : QObject()
+Client::Client(QString name) : QObject()
 {
-    this->connection      = NULL;
+    this->connection = NULL;
     this->name = name;
 }
 
-int Client::SendSocketMessage(MessageData<> &msg){
-
+int Client::SendSocketMessage(MessageData<> &msg)
+{
     int res = send(connection, (char*)&msg, sizeof(msg), 0) == SOCKET_ERROR;
     return res;
-
 }
 
 bool Client::OpenSocket(const char *ip, int port)
@@ -25,7 +22,6 @@ bool Client::OpenSocket(const char *ip, int port)
     {
         return false;
     }
-
 
     SOCKADDR_IN addr;
     addr.sin_addr.s_addr = inet_addr(ip);
@@ -43,6 +39,7 @@ bool Client::OpenSocket(const char *ip, int port)
     }
     return true;
 }
+
 void Client::CloseSocket()
 {
     if (connection)
