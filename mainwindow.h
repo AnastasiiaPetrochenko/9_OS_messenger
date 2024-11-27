@@ -17,6 +17,7 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
     Client *client;
+    MessageData<> *oMsg;
 
     QThread *WaitMessageS;
 

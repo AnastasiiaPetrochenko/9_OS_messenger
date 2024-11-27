@@ -2,17 +2,17 @@
 
 
 
-Client::Client()
+Client::Client(QString name)
     : QObject()
 {
     this->connection      = NULL;
+    this->name = name;
 }
 
-int Client::SendSocketMessage(std::string message){
+int Client::SendSocketMessage(MessageData<> &msg){
 
-    int res = send(connection, message.c_str(), message.size(), 0) == SOCKET_ERROR;
+    int res = send(connection, (char*)&msg, sizeof(msg), 0) == SOCKET_ERROR;
     return res;
-
 
 }
 

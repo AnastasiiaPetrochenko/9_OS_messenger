@@ -18,15 +18,19 @@ class Client : public QObject
 {
     Q_OBJECT
 
+    MessageData<> *iMsgSocket;
+    QString name;
     SOCKET connection;
 
 public:
-    Client();
+    Client(QString name);
 
     bool OpenSocket(const char *ip = LOCAL_IP_ADDRESS, int port = DEFAULT_PORT);
     void CloseSocket();
 
-    int SendSocketMessage(std::string message);
+    int SendSocketMessage(MessageData<> &msg);
+
+    QString getName() {return name;}
 };
 
 #endif // CLIENT_H

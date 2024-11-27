@@ -17,8 +17,8 @@
    <widget class="QLineEdit" name="IP_lineEdit">
     <property name="geometry">
      <rect>
-      <x>135</x>
-      <y>54</y>
+      <x>130</x>
+      <y>80</y>
       <width>161</width>
       <height>31</height>
      </rect>
@@ -27,8 +27,8 @@
    <widget class="QLineEdit" name="Port_lineEdit">
     <property name="geometry">
      <rect>
-      <x>135</x>
-      <y>124</y>
+      <x>134</x>
+      <y>130</y>
       <width>161</width>
       <height>31</height>
      </rect>
@@ -55,8 +55,8 @@ font: 10pt &quot;Times New Roman&quot;;
    <widget class="QLabel" name="socketIpLabel_2">
     <property name="geometry">
      <rect>
-      <x>105</x>
-      <y>54</y>
+      <x>100</x>
+      <y>80</y>
       <width>31</width>
       <height>21</height>
      </rect>
@@ -86,8 +86,8 @@ font: 700 9pt &quot;Segoe UI&quot;;</string>
    <widget class="QLabel" name="socketPortLabel_2">
     <property name="geometry">
      <rect>
-      <x>81</x>
-      <y>134</y>
+      <x>80</x>
+      <y>140</y>
       <width>41</width>
       <height>20</height>
      </rect>
@@ -257,6 +257,47 @@ font: 700 9pt &quot;Segoe UI&quot;;</string>
       <y>370</y>
       <width>241</width>
       <height>41</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QLabel" name="socketIpLabel_3">
+    <property name="geometry">
+     <rect>
+      <x>80</x>
+      <y>30</y>
+      <width>41</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="sizePolicy">
+     <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+      <horstretch>0</horstretch>
+      <verstretch>0</verstretch>
+     </sizepolicy>
+    </property>
+    <property name="font">
+     <font>
+      <family>Segoe UI</family>
+      <pointsize>9</pointsize>
+      <italic>false</italic>
+      <bold>true</bold>
+     </font>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">font: 10pt &quot;Times New Roman&quot;;
+font: 700 9pt &quot;Segoe UI&quot;;</string>
+    </property>
+    <property name="text">
+     <string>Name:</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="nameLine">
+    <property name="geometry">
+     <rect>
+      <x>130</x>
+      <y>30</y>
+      <width>161</width>
+      <height>31</height>
      </rect>
     </property>
    </widget>
