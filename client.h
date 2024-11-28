@@ -12,6 +12,7 @@
 #include <QTextEdit>
 #include <QListWidgetItem>
 
+#define MAILSLOT_SERVER_NAME "\\\\.\\Mailslot\\Server"
 #define IP_ADDRESS "127.0.0.1"
 #define PORT 1111
 
@@ -20,6 +21,8 @@ class Client : public QObject
     Q_OBJECT
 private:
     static id_t idCounter;
+    static HANDLE hMailslotInput;
+    HANDLE hMailslotOutput;
 
     QString name;
     HANDLE hThread;
@@ -53,6 +56,11 @@ public:
     inline SOCKET GetSocket() const { return connection; }
 
     static id_t GetNewId();
+
+    static void OpenServerMailslot();
+    static void CloseServerMailslot();
+    void OpenMailslot(id_t id);
+    void CloseMailslot();
 
     void CloseSocket();
 

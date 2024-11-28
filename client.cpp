@@ -9,6 +9,8 @@ Client::Client()
     this->listItem = nullptr;
     this->textEdit = nullptr;
     this->hThread = NULL;
+
+    this->hMailslotOutput = NULL;
 }
 
 Client::Client(QListWidgetItem *listItem, const QString &name, QTextEdit *textEdit, SOCKET socket)
@@ -18,6 +20,8 @@ Client::Client(QListWidgetItem *listItem, const QString &name, QTextEdit *textEd
     this->textEdit = textEdit;
     this->connection = socket;
     this->hThread = NULL;
+
+    this->hMailslotOutput = NULL;
 }
 
 Client::Client(const Client &other)
@@ -90,6 +94,43 @@ id_t Client::GetNewId()
 {
     ++idCounter;
     return idCounter - 1;
+}
+
+void Client::OpenServerMailslot()
+{
+    if ((hMailslotInput = CreateMailslotA(MAILSLOT_SERVER_NAME,
+                                          0,
+                                          0,
+                                          NULL))
+        == INVALID_HANDLE_VALUE)
+    {
+        throw QString("Cannot create server mailslot");
+    }
+}
+
+void Client::CloseServerMailslot()
+{
+    CloseHandle(hMailslotInput);
+}
+
+void Client::OpenMailslot(id_t id)
+{
+    if ((this->hMailslotOutput = CreateFileA(("\\\\.\\Mailslot\\" + QString::number(id)).toLocal8Bit(),
+                                             GENERIC_WRITE, FILE_SHARE_READ, NULL,
+                                             OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
+                                             NULL)) == INVALID_HANDLE_VALUE)
+    {
+        throw QString("Cannot connect to mailslot");
+    }
+}
+
+void Client::CloseMailslot()
+{
+    if (hMailslotOutput != NULL)
+    {
+        CloseHandle(hMailslotOutput);
+        hMailslotOutput = NULL;
+    }
 }
 
 void Client::OpenSocket()
