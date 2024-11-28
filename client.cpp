@@ -1,6 +1,8 @@
 #include "client.h"
 #include <QMessageBox>
 
+const QString Client::CLIENT_PATH =
+    "..\\build-MessengerClient-Desktop_Qt_5_14_1_MinGW_32_bit-Debug\\MessengerClient.exe";
 id_t Client::idCounter = 1;
 HANDLE Client::hMailslotInput = INVALID_HANDLE_VALUE;
 
@@ -228,6 +230,7 @@ void Client::StopThread()
     if (hThread != NULL)
     {
         WaitForSingleObject(hThread, INFINITE);
+        //CloseHandle(hThread);
         hThread = NULL;
     }
 }

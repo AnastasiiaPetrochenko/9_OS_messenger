@@ -4,7 +4,27 @@
 MessageData<> *iMsg, *oMsg;
 QQueue<MessageData<>> inputMessages;
 
-HANDLE queueMutex;
+HANDLE queueMutex, openSocketMutex;
+
+__cdecl void MailslotListener(void *parameters)
+{
+    auto mainWindow = (MainWindow*)parameters;
+    MessageData<> *data = new MessageData<>;
+
+    while (true)
+    {
+        if (Client::ReceiveMailslot(data))
+        {
+            WaitForSingleObject(queueMutex, INFINITE);
+            inputMessages.push_back(*data);
+            ReleaseMutex(queueMutex);
+
+            mainWindow->NewMessage();
+        }
+        Sleep(100);
+    }
+    delete data;
+}
 
 __cdecl void SocketListener(void *parameters)
 {
@@ -39,8 +59,9 @@ MainWindow::MainWindow(QWidget *parent)
     oMsg = new MessageData<>();
     newClient = new Client();
     this->openSocketListener = NULL;
+    openSocketMutex = CreateMutexA(0, false, 0);
     queueMutex = CreateMutexA(0, false, 0);
-    type = Client::SOCKET_CONNECTION;
+    type = Client::MAILSLOT_CONNECTION;
 
     usersList = new QListWidget();
     usersList->setFont(QFont("Arial", 12, 12, false));
@@ -49,15 +70,20 @@ MainWindow::MainWindow(QWidget *parent)
     generalChat = CreateChat();
     ui->tabWidget->addTab(generalChat, "General");
 
-    ui->socketLabel->setText("IP: " IP_ADDRESS "\nPort: " + QString::number(PORT));
+    ui->mailslotLabel->setText("Server: " MAILSLOT_SERVER_NAME);
+    ui->socketLabel->setText("IP: " IP_ADDRESS
+                             "\nPort: " + QString::number(PORT));
 }
 
 MainWindow::~MainWindow()
 {
     for (auto it : clients)
     {
+        it.CloseMailslot();
         it.CloseSocket();
     }
+
+    Client::CloseServerMailslot();
 
     delete usersList;
     delete generalChat;
@@ -70,6 +96,7 @@ MainWindow::~MainWindow()
         CloseHandle(openSocketListener);
     }
 
+    CloseHandle(openSocketMutex);
     CloseHandle(queueMutex);
 
     delete newClient;
@@ -104,37 +131,41 @@ __cdecl void OpenSocketListener(void *parameters)
 
     while (true)
     {
-        WaitForSingleObject(queueMutex, INFINITE);
+        WaitForSingleObject(openSocketMutex, INFINITE);
         if ((connection = accept(sListen, (SOCKADDR*)&addr, &sizeofaddr)) != INVALID_SOCKET)
         {
             client->SetSocket(connection);
             client->NewSocket();
         }
-        else ReleaseMutex(queueMutex);
+        else ReleaseMutex(openSocketMutex);
     }
 }
 
 void MainWindow::NewSocket()
 {
     MessageData<> *oMsg = new MessageData<>;
-
     oMsg->com = NEW_ID;
     oMsg->recvId = Client::GetNewId();
     newClient->SendSocket(oMsg);
 
     newClient->ReceiveSocket(iMsg);
     HandleData(iMsg);
-    ReleaseMutex(queueMutex);
+    ReleaseMutex(openSocketMutex);
     delete oMsg;
 }
 
 void MainWindow::on_launchButton_clicked()
 {
+    Client::OpenServerMailslot();
+
+    //newClient.moveToThread(openSocketListener);
+    //connect(openSocketListener, SIGNAL(started()), &newClient, SLOT(OpenSocket()));
+
     connect(newClient, SIGNAL(NewSocket()), this, SLOT(NewSocket()));
     openSocketListener = (HANDLE)_beginthread(OpenSocketListener, 0, (void*)newClient);
 
     connect(this, SIGNAL(NewMessage()), this, SLOT(HandleData()));
-    _beginthread(SocketListener, 0, (void*)this);
+    _beginthread(MailslotListener, 0, (void*)this);
 
     ui->launchButton->setEnabled(false);
     ui->runClientButton->setEnabled(true);
@@ -189,14 +220,13 @@ void MainWindow::HandleData(MessageData<> *data)
                                                 QString(iMsg->msg),
                                                 CreateChat(),
                                                 newClient->GetSocket()));
-            client->OpenSocket();
+            client->OpenMailslot(iMsg->senderId);
 
             usersList->addItem(client->GetListItem());
             ui->tabWidget->addTab(client->GetTextEdit(), client->GetName());
 
             iMsg->recvId = iMsg->senderId;
             MessageData<> *oMsg = new MessageData<>;
-
             oMsg->com = MessageCommand::NEW_USER;
             for (auto it = clients.begin(); it != clients.end(); ++it)
             {
@@ -254,6 +284,7 @@ void MainWindow::HandleData(MessageData<> *data)
         if (client != clients.end())
         {
             client->StopThread();
+            client->CloseMailslot();
             client->CloseSocket();
             clients.erase(client);
             for (Client &cl : clients)
@@ -271,6 +302,11 @@ void MainWindow::HandleData(MessageData<> *data)
         break;
     }
     if (data == nullptr) delete iMsg;
+}
+
+void MainWindow::on_mailslotRadioButton_clicked(bool checked)
+{
+    if (checked) type = Client::MAILSLOT_CONNECTION;
 }
 
 void MainWindow::on_socketRadioButton_clicked(bool checked)

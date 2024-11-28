@@ -34,6 +34,8 @@ private slots:
 
     void on_runClientButton_clicked();
 
+    void on_mailslotRadioButton_clicked(bool checked);
+
     void on_socketRadioButton_clicked(bool checked);
 
 signals:
@@ -45,11 +47,13 @@ private:
 
     QListWidget *usersList;
     QTextEdit *generalChat;
+    //QTimer *checkTimer;
     QMap<id_t, Client> clients;
 
     Client *newClient;
     Client::ConnectionType type;
 
+    //QThread *openSocketListener;
     HANDLE openSocketListener;
 
     QTextEdit *CreateChat() const;
