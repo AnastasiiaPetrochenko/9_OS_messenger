@@ -1,7 +1,7 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
-#include "datalib.h"
+#include "../DataLib/datalib.h"
 
 #include <winsock2.h>
 #include <iostream>

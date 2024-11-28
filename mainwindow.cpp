@@ -39,8 +39,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->messageLineEdit->setMaxLength(oMsg->GetMessageSize());
     ui->ipLineEdit->setValidator(new QRegularExpressionValidator(
         QRegularExpression(R"(\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b)"),
-        ui->ipLineEdit
-        ));
+                                     ui->ipLineEdit
+                                     ));
     ui->portLineEdit->setValidator(new QIntValidator(0, 65535, ui->portLineEdit));
 
     bool ok;
@@ -99,12 +99,12 @@ void MainWindow::HandleData()
             if (users.contains(iMsg->senderId))
             {
                 QTextEdit *chat = users[iMsg->recvId == 0
-                                            ? 0
-                                            : iMsg->senderId].GetChat();
+                                    ? 0
+                                    : iMsg->senderId].GetChat();
                 chat->append(users[iMsg->senderId].GetName()
-                             + ": "
-                             + QString(iMsg->msg)
-                             + "\n");
+                        + ": "
+                        + QString(iMsg->msg)
+                        + "\n");
                 ui->tabWidget->setCurrentWidget(chat);
             }
             break;
@@ -117,7 +117,7 @@ void MainWindow::HandleData()
                 users.erase(user);
             }
         }
-        break;
+            break;
 
         default:
             QMessageBox::information(this,
@@ -184,10 +184,10 @@ void MainWindow::on_sendButton_clicked()
         QMessageBox::information(this,
                                  "Too long message",
                                  "Your message is too long ("
-                                     + QString::number(msg.size())
-                                     + " characters). Maximum message size: "
-                                     + QString::number(oMsg->GetMessageSize())
-                                     + " characters.");
+                                 + QString::number(msg.size())
+                                 + " characters). Maximum message size: "
+                                 + QString::number(oMsg->GetMessageSize())
+                                 + " characters.");
         return;
     }
 
