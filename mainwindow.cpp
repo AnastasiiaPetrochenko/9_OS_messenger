@@ -16,7 +16,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::on_connectButton_clicked()
 {
-    client = new Client(ui->nameLine->text());
+    //client = new Client(ui->nameLine->text());
 
 
     client->OpenSocket();
