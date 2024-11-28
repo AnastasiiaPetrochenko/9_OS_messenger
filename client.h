@@ -10,46 +10,32 @@
 #include <QTextEdit>
 #include <QListWidgetItem>
 
+#define MAILSLOT_SERVER_NAME "\\\\.\\Mailslot\\Server"
 #define IP_ADDRESS "127.0.0.1"
 #define PORT 1111
 
 class Client : public QObject
 {
     Q_OBJECT
-private:
-    QString name;
-    SOCKET connection;
-    QTextEdit *textEdit;
-    QListWidgetItem *listItem;
 
 public:
-    enum ConnectionType
-    {
-        SOCKET_CONNECTION
-    };
-
     Client();
-    Client(QListWidgetItem *listItem, const QString &name, QTextEdit *textEdit, SOCKET socket = 0);
+    Client(QListWidgetItem *listItem, const QString &name, QTextEdit *textEdit, SOCKET socket);
     ~Client();
 
-    inline void SetListItem(QListWidgetItem *listItem) { this->listItem = listItem; }
-    inline QListWidgetItem *GetListItem() const { return listItem; }
-
-    inline void SetSocket(SOCKET &socket) { connection = socket; }
-    inline SOCKET GetSocket() const { return connection; }
-
+    void OpenSocket();
     void CloseSocket();
-
-    bool Send(ConnectionType type, const MessageData<> *output);
     bool ReceiveSocket(MessageData<> *input);
     bool SendSocket(const MessageData<> *output);
 
-public slots:
-    void OpenSocket();
-
 signals:
-    void NewMessage();
     void NewSocket();
+
+private:
+    QListWidgetItem *listItem;
+    QString name;
+    QTextEdit *textEdit;
+    SOCKET connection;
 };
 
 #endif // CLIENT_H
