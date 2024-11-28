@@ -4,6 +4,11 @@
 #include "datalib.h"
 
 #include <winsock2.h>
+#include <iostream>
+#include <Ws2tcpip.h>
+#include <winsock.h>
+#include <windows.h>
+
 #include <QTextEdit>
 #include <QListWidgetItem>
 
@@ -17,6 +22,7 @@ private:
     static id_t idCounter;
 
     QString name;
+    HANDLE hThread;
     SOCKET connection;
     QTextEdit *textEdit;
     QListWidgetItem *listItem;
@@ -53,8 +59,12 @@ public:
     void AppendToChat(const QString &senderName, const QString &message);
 
     bool Send(ConnectionType type, const MessageData<> *output);
+
     bool ReceiveSocket(MessageData<> *input);
     bool SendSocket(const MessageData<> *output);
+
+    void StartThread(void (*func)(void*), const QObject *receiver, const char *member);
+    void StopThread();
 
 public slots:
     void OpenSocket();

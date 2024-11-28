@@ -6,32 +6,84 @@ id_t Client::idCounter = 1;
 
 Client::Client()
 {
-    this->connection = NULL;
+    this->listItem = nullptr;
+    this->textEdit = nullptr;
+    this->hThread = NULL;
 }
 
-Client::Client(const QString &name, SOCKET socket)
+Client::Client(QListWidgetItem *listItem, const QString &name, QTextEdit *textEdit, SOCKET socket)
 {
+    this->listItem = listItem;
     this->name = name;
+    this->textEdit = textEdit;
     this->connection = socket;
+    this->hThread = NULL;
 }
 
 Client::Client(const Client &other)
     : QObject()
 {
+    this->listItem = other.listItem;
     this->name = other.name;
     this->connection = other.connection;
+    this->hThread = NULL;
+    if (other.textEdit == nullptr)
+    {
+        this->textEdit = nullptr;
+    }
+    else
+    {
+        this->textEdit = new QTextEdit();
+        this->textEdit->setFont(other.textEdit->font());
+        this->textEdit->setReadOnly(other.textEdit->isReadOnly());
+    }
+    if (other.listItem == nullptr)
+    {
+        this->listItem = nullptr;
+    }
+    else
+    {
+        this->listItem = new QListWidgetItem(*other.listItem);
+    }
 }
 
 Client &Client::operator=(const Client &other)
 {
     this->name = other.name;
     this->connection = other.connection;
+    this->hThread = NULL;
+    if (other.textEdit == nullptr)
+    {
+        this->textEdit = nullptr;
+    }
+    else
+    {
+        delete this->textEdit;
+        this->textEdit = new QTextEdit();
+        this->textEdit->setFont(other.textEdit->font());
+        this->textEdit->setReadOnly(other.textEdit->isReadOnly());
+    }
+    if (other.listItem == nullptr)
+    {
+        this->listItem = nullptr;
+    }
+    else
+    {
+        if (this->listItem != nullptr)
+        {
+            delete this->listItem;
+        }
+        this->listItem = new QListWidgetItem(*other.listItem);
+    }
+    StopThread();
     return *this;
 }
 
 Client::~Client()
 {
-    CloseSocket();
+    if (textEdit != nullptr) delete textEdit;
+    if (listItem != nullptr) delete listItem;
+    StopThread();
 }
 
 id_t Client::GetNewId()
@@ -73,6 +125,11 @@ void Client::CloseSocket()
     }
 }
 
+void Client::AppendToChat(const QString &senderName, const QString &message)
+{
+    textEdit->append("From " + senderName + ": " + message);
+}
+
 bool Client::Send(Client::ConnectionType type, const MessageData<> *output)
 {
     switch (type)
@@ -80,7 +137,23 @@ bool Client::Send(Client::ConnectionType type, const MessageData<> *output)
     case SOCKET_CONNECTION:
         return SendSocket(output);
     default:
-        return false;
+        return SendSocket(output);
+    }
+}
+
+void Client::StartThread(void (*func)(void*), const QObject *receiver, const char *member)
+{
+    connect(this, SIGNAL(NewMessage()), receiver, member);
+    hThread = (HANDLE)_beginthread(func, 0, this);
+}
+
+void Client::StopThread()
+{
+    disconnect(this, SIGNAL(NewMessage()));
+    if (hThread != NULL)
+    {
+        WaitForSingleObject(hThread, INFINITE);
+        hThread = NULL;
     }
 }
 

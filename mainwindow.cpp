@@ -4,24 +4,27 @@
 MessageData<> *iMsg, *oMsg;
 QQueue<MessageData<>> inputMessages;
 
+HANDLE queueMutex;
+
 __cdecl void SocketListener(void *parameters)
 {
     auto client = (Client*)parameters;
-    MessageData<> *data = new MessageData<>();
+    MessageData<> *data = new MessageData<>;
 
     while (true)
     {
         if (client->ReceiveSocket(data))
         {
+            WaitForSingleObject(queueMutex, INFINITE);
             inputMessages.push_back(*data);
-
             if (inputMessages.back().com == REMOVE_USER)
             {
                 delete data;
+                ReleaseMutex(queueMutex);
                 client->NewMessage();
                 return;
             }
-
+            ReleaseMutex(queueMutex);
             client->NewMessage();
         }
     }
@@ -36,6 +39,7 @@ MainWindow::MainWindow(QWidget *parent)
     oMsg = new MessageData<>();
     newClient = new Client();
     this->openSocketListener = NULL;
+    queueMutex = CreateMutexA(0, false, 0);
     type = Client::SOCKET_CONNECTION;
 
     usersList = new QListWidget();
@@ -66,8 +70,9 @@ MainWindow::~MainWindow()
         CloseHandle(openSocketListener);
     }
 
-    delete newClient;
+    CloseHandle(queueMutex);
 
+    delete newClient;
     WSACleanup();
 
     delete ui;
@@ -99,23 +104,27 @@ __cdecl void OpenSocketListener(void *parameters)
 
     while (true)
     {
+        WaitForSingleObject(queueMutex, INFINITE);
         if ((connection = accept(sListen, (SOCKADDR*)&addr, &sizeofaddr)) != INVALID_SOCKET)
         {
             client->SetSocket(connection);
             client->NewSocket();
         }
+        else ReleaseMutex(queueMutex);
     }
 }
 
 void MainWindow::NewSocket()
 {
-    MessageData<> *oMsg = new MessageData<>();
+    MessageData<> *oMsg = new MessageData<>;
+
     oMsg->com = NEW_ID;
     oMsg->recvId = Client::GetNewId();
     newClient->SendSocket(oMsg);
 
     newClient->ReceiveSocket(iMsg);
     HandleData(iMsg);
+    ReleaseMutex(queueMutex);
     delete oMsg;
 }
 
@@ -154,9 +163,17 @@ void MainWindow::HandleData(MessageData<> *data)
     }
     else
     {
-        if (inputMessages.isEmpty()) return;
+        WaitForSingleObject(queueMutex, INFINITE);
+
+        if (inputMessages.isEmpty())
+        {
+            ReleaseMutex(queueMutex);
+            return;
+        }
         iMsg = new MessageData<>(inputMessages.front());
         inputMessages.pop_front();
+
+        ReleaseMutex(queueMutex);
     }
 
     switch (iMsg->com)
@@ -172,13 +189,14 @@ void MainWindow::HandleData(MessageData<> *data)
                                                 QString(iMsg->msg),
                                                 CreateChat(),
                                                 newClient->GetSocket()));
-
+            client->OpenSocket();
 
             usersList->addItem(client->GetListItem());
             ui->tabWidget->addTab(client->GetTextEdit(), client->GetName());
 
             iMsg->recvId = iMsg->senderId;
-            MessageData<> *oMsg = new MessageData<>();
+            MessageData<> *oMsg = new MessageData<>;
+
             oMsg->com = MessageCommand::NEW_USER;
             for (auto it = clients.begin(); it != clients.end(); ++it)
             {
@@ -191,6 +209,7 @@ void MainWindow::HandleData(MessageData<> *data)
                 }
             }
             delete oMsg;
+            client->StartThread(SocketListener, this, SLOT(HandleData()));
         }
         break;
 
@@ -234,6 +253,7 @@ void MainWindow::HandleData(MessageData<> *data)
         auto client = clients.find(iMsg->senderId);
         if (client != clients.end())
         {
+            client->StopThread();
             client->CloseSocket();
             clients.erase(client);
             for (Client &cl : clients)
