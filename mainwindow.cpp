@@ -182,6 +182,7 @@ void MainWindow::on_connectButton_clicked()
         if (client->OpenSocket(ui->ipLineEdit->text().toLocal8Bit(),
                                ui->portLineEdit->text().toUShort()))
         {
+
             client->ReceiveSocket(oMsg);
 
             oMsg->senderId = client->GetId();
