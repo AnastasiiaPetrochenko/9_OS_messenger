@@ -7,6 +7,11 @@
 #include <iostream>
 #include <Ws2tcpip.h>
 #include <winsock.h>
+#include <winsock2.h>
+#include <w32api.h>
+#include <winnetwk.h>
+#include <ws2spi.h>
+#include <wtsapi32.h>
 #include <windows.h>
 
 #include <QTextEdit>
@@ -22,9 +27,9 @@ class Client : public QObject
 private:
     static id_t idCounter;
     static HANDLE hMailslotInput;
-    HANDLE hMailslotOutput;
 
     QString name;
+    HANDLE hMailslotOutput;
     HANDLE hThread;
     SOCKET connection;
     QTextEdit *textEdit;
@@ -33,6 +38,7 @@ private:
 public:
     enum ConnectionType
     {
+        MAILSLOT_CONNECTION,
         SOCKET_CONNECTION
     };
     static const QString CLIENT_PATH;
@@ -68,11 +74,13 @@ public:
 
     bool Send(ConnectionType type, const MessageData<> *output);
 
-    bool ReceiveSocket(MessageData<> *input);
-    bool SendSocket(const MessageData<> *output);
+    static bool ReceiveMailslot(MessageData<> *input);
+    bool SendMailslot(const MessageData<> *output);
 
     void StartThread(void (*func)(void*), const QObject *receiver, const char *member);
     void StopThread();
+    bool ReceiveSocket(MessageData<> *input);
+    bool SendSocket(const MessageData<> *output);
 
 public slots:
     void OpenSocket();
