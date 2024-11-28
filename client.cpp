@@ -1,16 +1,15 @@
 #include "client.h"
 #include <QMessageBox>
 
-
 id_t Client::idCounter = 1;
+HANDLE Client::hMailslotInput = INVALID_HANDLE_VALUE;
 
 Client::Client()
 {
     this->listItem = nullptr;
     this->textEdit = nullptr;
-    this->hThread = NULL;
-
     this->hMailslotOutput = NULL;
+    this->hThread = NULL;
 }
 
 Client::Client(QListWidgetItem *listItem, const QString &name, QTextEdit *textEdit, SOCKET socket)
@@ -19,9 +18,8 @@ Client::Client(QListWidgetItem *listItem, const QString &name, QTextEdit *textEd
     this->name = name;
     this->textEdit = textEdit;
     this->connection = socket;
-    this->hThread = NULL;
-
     this->hMailslotOutput = NULL;
+    this->hThread = NULL;
 }
 
 Client::Client(const Client &other)
@@ -29,6 +27,13 @@ Client::Client(const Client &other)
 {
     this->listItem = other.listItem;
     this->name = other.name;
+    DuplicateHandle(GetCurrentProcess(),
+                    other.hMailslotOutput,
+                    GetCurrentProcess(),
+                    &this->hMailslotOutput,
+                    0,
+                    FALSE,
+                    DUPLICATE_SAME_ACCESS);
     this->connection = other.connection;
     this->hThread = NULL;
     if (other.textEdit == nullptr)
@@ -54,6 +59,13 @@ Client::Client(const Client &other)
 Client &Client::operator=(const Client &other)
 {
     this->name = other.name;
+    DuplicateHandle(GetCurrentProcess(),
+                    other.hMailslotOutput,
+                    GetCurrentProcess(),
+                    &this->hMailslotOutput,
+                    0,
+                    FALSE,
+                    DUPLICATE_SAME_ACCESS);
     this->connection = other.connection;
     this->hThread = NULL;
     if (other.textEdit == nullptr)
@@ -175,11 +187,33 @@ bool Client::Send(Client::ConnectionType type, const MessageData<> *output)
 {
     switch (type)
     {
+    case MAILSLOT_CONNECTION:
+        return SendMailslot(output);
     case SOCKET_CONNECTION:
         return SendSocket(output);
     default:
-        return SendSocket(output);
+        return SendMailslot(output);
     }
+}
+
+bool Client::ReceiveMailslot(MessageData<> *input)
+{
+    DWORD bytesRead;
+    return ReadFile(hMailslotInput,
+                    (char*)input,
+                    sizeof(*input),
+                    &bytesRead,
+                    NULL);
+}
+
+bool Client::SendMailslot(const MessageData<> *output)
+{
+    DWORD bytesWritten;
+    return WriteFile(hMailslotOutput,
+                     (char*)output,
+                     sizeof(*output),
+                     &bytesWritten,
+                     NULL);
 }
 
 void Client::StartThread(void (*func)(void*), const QObject *receiver, const char *member)
