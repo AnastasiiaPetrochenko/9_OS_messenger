@@ -2,21 +2,14 @@
 #define MAINWINDOW_H
 
 #include "client.h"
-
 #include <QMainWindow>
-#include <Qtimer>
-#include <QProcess>
+#include <QThread>
+#include <QListWidget>
 #include <QTextEdit>
+#include <QDebug>
 #include <vector>
 
-#include <QThread>
-
 #include "ui_mainwindow.h"
-
-
-#include <QMetaObject>
-#include <QDebug>
-#include <algorithm>
 
 #define DELAY 1000
 
@@ -26,35 +19,30 @@ class MainWindow;
 }
 QT_END_NAMESPACE
 
-
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
+
     SOCKET serverSocket;
-
-    QThread *WaitMessageS;
-    QThread *WaitConnectS;
-
-    QListWidget *usersList;
-    QTextEdit *generalChat;
+    QListWidget *usersList;  // Якщо потрібно для списку користувачів
+    QTextEdit *generalChat;  // Якщо потрібно для чату
 
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
-
 
 private slots:
     void on_launchButton_clicked();
 
 signals:
     void messageReceived(MessageData<> *input);
+
 public slots:
     void sendMessage(MessageData<> *input) {
         int rowCount = ui->tableWidget->rowCount();
         ui->tableWidget->insertRow(rowCount);
-        //ui->tableWidget->setItem(rowCount, 0, new QTableWidgetItem(input->name));
+        // Додавання повідомлення в таблицю
         ui->tableWidget->setItem(rowCount, 0, new QTableWidgetItem(input->msg));
-
     }
 
 private:
