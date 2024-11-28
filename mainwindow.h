@@ -2,51 +2,56 @@
 #define MAINWINDOW_H
 
 #include "client.h"
+
 #include <QMainWindow>
-#include <QThread>
-#include <QListWidget>
 #include <QTextEdit>
-#include <QDebug>
-#include <vector>
+#include <QListWidget>
+#include <QMap>
+#include <QMessageBox>
+#include <QQueue>
+#include <QProcess>
 
-#include "ui_mainwindow.h"
-
-#define DELAY 1000
+#define UPDATE_TIME 300
 
 QT_BEGIN_NAMESPACE
-namespace Ui {
-class MainWindow;
-}
+namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
 
-    SOCKET serverSocket;
-    QListWidget *usersList;  // Якщо потрібно для списку користувачів
-    QTextEdit *generalChat;  // Якщо потрібно для чату
-
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
 private slots:
+    void NewSocket();
+
+    void HandleData(MessageData<> *data = nullptr);
+
     void on_launchButton_clicked();
 
-signals:
-    void messageReceived(MessageData<> *input);
+    void on_runClientButton_clicked();
 
-public slots:
-    void sendMessage(MessageData<> *input) {
-        int rowCount = ui->tableWidget->rowCount();
-        ui->tableWidget->insertRow(rowCount);
-        // Додавання повідомлення в таблицю
-        ui->tableWidget->setItem(rowCount, 0, new QTableWidgetItem(input->msg));
-    }
+    void on_socketRadioButton_clicked(bool checked);
+
+signals:
+    void NewSocketSignal();
+    void NewMessage();
 
 private:
     Ui::MainWindow *ui;
-};
 
+    QListWidget *usersList;
+    QTextEdit *generalChat;
+    QMap<id_t, Client> clients;
+
+    Client *newClient;
+    Client::ConnectionType type;
+
+    HANDLE openSocketListener;
+
+    QTextEdit *CreateChat() const;
+};
 #endif // MAINWINDOW_H

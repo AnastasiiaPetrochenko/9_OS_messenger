@@ -4,38 +4,64 @@
 #include "datalib.h"
 
 #include <winsock2.h>
-#include <Ws2tcpip.h>
-#include <windows.h>
-
 #include <QTextEdit>
 #include <QListWidgetItem>
 
-#define MAILSLOT_SERVER_NAME "\\\\.\\Mailslot\\Server"
 #define IP_ADDRESS "127.0.0.1"
 #define PORT 1111
 
 class Client : public QObject
 {
     Q_OBJECT
+private:
+    static id_t idCounter;
+
+    QString name;
+    SOCKET connection;
+    QTextEdit *textEdit;
+    QListWidgetItem *listItem;
 
 public:
+    enum ConnectionType
+    {
+        SOCKET_CONNECTION
+    };
+    static const QString CLIENT_PATH;
+
     Client();
-    Client(QListWidgetItem *listItem, const QString &name, QTextEdit *textEdit, SOCKET socket);
+    Client(QListWidgetItem *listItem, const QString &name, QTextEdit *textEdit, SOCKET socket = 0);
+    Client(const Client &other);
+    Client &operator=(const Client &other);
     ~Client();
 
-    void OpenSocket();
+    inline void SetListItem(QListWidgetItem *listItem) { this->listItem = listItem; }
+    inline QListWidgetItem *GetListItem() const { return listItem; }
+
+    inline void SetName(const QString &name) { this->name = name; }
+    inline QString GetName() const { return name; }
+
+    inline void SetTextEdit(QTextEdit *textEdit) { this->textEdit = textEdit; }
+    inline QTextEdit *GetTextEdit() const { return textEdit; }
+
+    inline void SetSocket(SOCKET &socket) { connection = socket; }
+    inline SOCKET GetSocket() const { return connection; }
+
+    static id_t GetNewId();
+
     void CloseSocket();
+
+    void AppendToChat(const QString &senderName, const QString &message);
+
+    bool Send(ConnectionType type, const MessageData<> *output);
     bool ReceiveSocket(MessageData<> *input);
     bool SendSocket(const MessageData<> *output);
 
-signals:
-    void NewSocket();
+public slots:
+    void OpenSocket();
 
-private:
-    QListWidgetItem *listItem;
-    QString name;
-    QTextEdit *textEdit;
-    SOCKET connection;
+signals:
+    void NewMessage();
+    void NewSocket();
 };
 
 #endif // CLIENT_H

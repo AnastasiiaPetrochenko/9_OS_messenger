@@ -1,110 +1,259 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-MainWindow *mainWindow;
-std::vector<Client *> clientSockets;
+MessageData<> *iMsg, *oMsg;
+QQueue<MessageData<>> inputMessages;
+
+__cdecl void SocketListener(void *parameters)
+{
+    auto client = (Client*)parameters;
+    MessageData<> *data = new MessageData<>();
+
+    while (true)
+    {
+        if (client->ReceiveSocket(data))
+        {
+            inputMessages.push_back(*data);
+
+            if (inputMessages.back().com == REMOVE_USER)
+            {
+                delete data;
+                client->NewMessage();
+                return;
+            }
+
+            client->NewMessage();
+        }
+    }
+}
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    iMsg = new MessageData<>();
+    oMsg = new MessageData<>();
+    newClient = new Client();
+    this->openSocketListener = NULL;
+    type = Client::SOCKET_CONNECTION;
 
-    mainWindow = this;
-    connect(this, &MainWindow::messageReceived, this, &MainWindow::sendMessage);
+    usersList = new QListWidget();
+    usersList->setFont(QFont("Arial", 12, 12, false));
+    ui->tabWidget->addTab(usersList, "All Users");
+
+    generalChat = CreateChat();
+    ui->tabWidget->addTab(generalChat, "General");
+
+    ui->socketLabel->setText("IP: " IP_ADDRESS "\nPort: " + QString::number(PORT));
 }
 
 MainWindow::~MainWindow()
 {
+    for (auto it : clients)
+    {
+        it.CloseSocket();
+    }
+
+    delete usersList;
+    delete generalChat;
+    delete iMsg;
+    delete oMsg;
+
+    if (openSocketListener != NULL)
+    {
+        TerminateThread(openSocketListener, 0);
+        CloseHandle(openSocketListener);
+    }
+
+    delete newClient;
+
+    WSACleanup();
+
     delete ui;
 }
 
-SOCKET OpenSocket()
+__cdecl void OpenSocketListener(void *parameters)
 {
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
+    Client *client = (Client*)parameters;
 
-    SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (serverSocket == INVALID_SOCKET) {
-        return NULL;
+    WSAData wsaData;
+    WORD DLLVersion = MAKEWORD(2, 1);
+    if (WSAStartup(DLLVersion, &wsaData) != 0)
+    {
+        QMessageBox::critical(nullptr, "Error", "WSAStartup failed");
+        return;
     }
 
-    sockaddr_in serverAddr;
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = inet_addr(IP_ADDRESS);
-    serverAddr.sin_port = htons(PORT);
+    SOCKADDR_IN addr;
+    int sizeofaddr = sizeof(addr);
+    addr.sin_addr.s_addr = inet_addr(IP_ADDRESS);
+    addr.sin_port = htons(PORT);
+    addr.sin_family = AF_INET;
 
-    if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
-        closesocket(serverSocket);
-        WSACleanup();
-        return NULL;
-    }
+    SOCKET sListen = socket(AF_INET, SOCK_STREAM, 0);
+    bind(sListen, (SOCKADDR*)&addr, sizeof(addr));
+    listen(sListen, SOMAXCONN);
 
-    return serverSocket;
-}
+    SOCKET connection;
 
-void WaitConnectionS(SOCKET server)
-{
-    while (true) {
-        listen(server, SOMAXCONN);
-
-        SOCKET socket_ = accept(server, nullptr, nullptr);
-        if (socket_ != INVALID_SOCKET) {
-            Client* newClient = new Client();
-            newClient->SetSocket(socket_);
-            clientSockets.push_back(newClient);
-            qDebug() << "New client connected. Total clients: " << clientSockets.size();
+    while (true)
+    {
+        if ((connection = accept(sListen, (SOCKADDR*)&addr, &sizeofaddr)) != INVALID_SOCKET)
+        {
+            client->SetSocket(connection);
+            client->NewSocket();
         }
     }
 }
 
-void WaitMessageSocket()
+void MainWindow::NewSocket()
 {
-    while (true) {
-        for (auto client : clientSockets) {
-            SOCKET clientSocket = client->GetSocket();
+    MessageData<> *oMsg = new MessageData<>();
+    oMsg->com = NEW_ID;
+    oMsg->recvId = Client::GetNewId();
+    newClient->SendSocket(oMsg);
 
-            if (clientSocket == INVALID_SOCKET) {
-                continue;
-            }
-
-            MessageData<> *input = new MessageData<>; // Ініціалізуємо пам'ять для input
-            int bytesReceived = recv(clientSocket, (char*)input, sizeof(*input), 0);
-
-            if (bytesReceived > 0) {
-                emit mainWindow->messageReceived(input);
-            } else if (bytesReceived == 0) {
-                closesocket(clientSocket);
-                clientSockets.erase(std::remove(clientSockets.begin(), clientSockets.end(), client), clientSockets.end());
-                delete client;
-                qDebug() << "Client disconnected. Total clients: " << clientSockets.size();
-            }
-        }
-    }
+    newClient->ReceiveSocket(iMsg);
+    HandleData(iMsg);
+    delete oMsg;
 }
 
 void MainWindow::on_launchButton_clicked()
 {
-    SOCKET serverSocket = OpenSocket();
-    if (serverSocket == NULL) {
-        qDebug() << "Failed to open server socket.";
-        return;
+    connect(newClient, SIGNAL(NewSocket()), this, SLOT(NewSocket()));
+    openSocketListener = (HANDLE)_beginthread(OpenSocketListener, 0, (void*)newClient);
+
+    connect(this, SIGNAL(NewMessage()), this, SLOT(HandleData()));
+    _beginthread(SocketListener, 0, (void*)this);
+
+    ui->launchButton->setEnabled(false);
+    ui->runClientButton->setEnabled(true);
+}
+
+void MainWindow::on_runClientButton_clicked()
+{
+    QProcess::startDetached(Client::CLIENT_PATH);
+}
+
+QTextEdit *MainWindow::CreateChat() const
+{
+    QTextEdit *chat = new QTextEdit();
+    chat->setReadOnly(true);
+    chat->setFont(QFont("Verdana", 12, 12, false));
+    return chat;
+}
+
+void MainWindow::HandleData(MessageData<> *data)
+{
+    MessageData<> *iMsg;
+
+    if (data != nullptr)
+    {
+        iMsg = data;
+    }
+    else
+    {
+        if (inputMessages.isEmpty()) return;
+        iMsg = new MessageData<>(inputMessages.front());
+        inputMessages.pop_front();
     }
 
-    QThread* connectThread = new QThread(this);
-    QObject::connect(connectThread, &QThread::started, [this, serverSocket]() {
-        WaitConnectionS(serverSocket);
-    });
-    connectThread->start();
+    switch (iMsg->com)
+    {
+    case NEW_USER:
+        if (!clients.contains(iMsg->senderId))
+        {
+            auto client = clients.insert(iMsg->senderId,
+                                         Client(new QListWidgetItem("Username: "
+                                                                    + QString(iMsg->msg)
+                                                                    + "\nID: "
+                                                                    + QString::number(iMsg->senderId)),
+                                                QString(iMsg->msg),
+                                                CreateChat(),
+                                                newClient->GetSocket()));
 
-    // Створення потоку для функції обробки повідомлень
-    QThread* messageThread = new QThread(this);
-    QObject::connect(messageThread, &QThread::started, [this]() {
-        WaitMessageSocket();
-    });
-    messageThread->start();
 
-    int rowCount = ui->tableWidget->rowCount();
-    ui->tableWidget->insertRow(rowCount);
-    ui->tableWidget->setItem(rowCount, 1, new QTableWidgetItem("ready"));
+            usersList->addItem(client->GetListItem());
+            ui->tabWidget->addTab(client->GetTextEdit(), client->GetName());
+
+            iMsg->recvId = iMsg->senderId;
+            MessageData<> *oMsg = new MessageData<>();
+            oMsg->com = MessageCommand::NEW_USER;
+            for (auto it = clients.begin(); it != clients.end(); ++it)
+            {
+                if (it.key() != iMsg->senderId)
+                {
+                    oMsg->recvId = it.key();
+                    oMsg->SetMessage(it.value().GetName());
+                    client->Send(type, oMsg);
+                    it->Send(type, iMsg);
+                }
+            }
+            delete oMsg;
+        }
+        break;
+
+    case MESSAGE:
+        if (iMsg->recvId == 0)
+        {
+            generalChat->append(clients[iMsg->senderId].GetName() + ": " + QString(iMsg->msg));
+            for (auto it = clients.begin(); it != clients.end(); ++it)
+            {
+                if (it.key() != iMsg->senderId)
+                {
+                    if (!it->Send(type, iMsg))
+                    {
+                        QMessageBox::warning(this, "Warning", "Message was not sent");
+                        break;
+                    }
+                }
+            }
+        }
+        else
+        {
+            auto receiver = clients.find(iMsg->recvId);
+            if (receiver != clients.end())
+            {
+                auto sender = clients.find(iMsg->senderId);
+                receiver->AppendToChat(sender == clients.end()
+                                           ? "Unknown"
+                                           : clients[iMsg->senderId].GetName(),
+                                       iMsg->msg);
+                if (!receiver->Send(type, iMsg))
+                {
+                    QMessageBox::warning(this, "Warning", "Message was not sent");
+                    break;
+                }
+            }
+        }
+        break;
+
+    case REMOVE_USER:
+    {
+        auto client = clients.find(iMsg->senderId);
+        if (client != clients.end())
+        {
+            client->CloseSocket();
+            clients.erase(client);
+            for (Client &cl : clients)
+            {
+                cl.Send(type, iMsg);
+            }
+        }
+    }
+    break;
+
+    default:
+        QMessageBox::warning(this,
+                             "Undefined command",
+                             "Message contains undefined command and was ignored");
+        break;
+    }
+    if (data == nullptr) delete iMsg;
+}
+
+void MainWindow::on_socketRadioButton_clicked(bool checked)
+{
+    if (checked) type = Client::SOCKET_CONNECTION;
 }
