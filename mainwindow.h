@@ -11,6 +11,8 @@
 #include <QTextEdit>
 #include <QTimer>
 #include <QMap>
+#include <QVector>
+#include <QFile>
 #include <QValidator>
 
 #define UPDATE_TIME 100
@@ -42,11 +44,13 @@ private:
 
     QMap<id_t, User> users; // <tab_index, id>
 
+    HANDLE mailslotListener; // Додано слухач для mail slot
     HANDLE socketListener;
 
     void CriticalError(const QString &msg);
     void TerminateThreads();
     QMap<id_t, User>::iterator GetCurrentUser();
     QTextEdit *CreateChat() const;
+
 };
 #endif // MAINWINDOW_H
