@@ -44,13 +44,12 @@ private:
 
     QMap<id_t, User> users; // <tab_index, id>
 
-    HANDLE mailslotListener; // Додано слухач для mail slot
+    HANDLE mailslotListener;
     HANDLE socketListener;
 
     void CriticalError(const QString &msg);
     void TerminateThreads();
     QMap<id_t, User>::iterator GetCurrentUser();
     QTextEdit *CreateChat() const;
-
 };
 #endif // MAINWINDOW_H

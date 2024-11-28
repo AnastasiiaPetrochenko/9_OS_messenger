@@ -1,32 +1,128 @@
 #include "client.h"
 
-Client::Client(const QString &name) : QObject(), connection(INVALID_SOCKET), name(name)
+Client::Client(id_t id, const QString &name)
+    : QObject()
 {
-    iMsgSocket = new MessageData<>();
-    iMsgMailslot = new MessageData<>(); // Додано для пошти
-    isSocketOpen = false;
+    this->id              = id;
+    this->name            = name;
+    this->iMsgMailslot    = new MessageData<>();
+    this->iMsgSocket      = new MessageData<>();
+    this->connection      = NULL;
+    this->hQueueMutex     = CreateMutexA(0, false, 0);
+    this->hMailslotInput  = NULL;
+    this->hMailslotOutput = NULL;
+}
 
+Client::Client(const Client &other)
+    : QObject()
+{
+    DuplicateHandle(GetCurrentProcess(),
+                    other.hMailslotInput,
+                    GetCurrentProcess(),
+                    &this->hMailslotInput,
+                    0,
+                    FALSE,
+                    DUPLICATE_SAME_ACCESS);
+    DuplicateHandle(GetCurrentProcess(),
+                    other.hMailslotOutput,
+                    GetCurrentProcess(),
+                    &this->hMailslotOutput,
+                    0,
+                    FALSE,
+                    DUPLICATE_SAME_ACCESS);
+    this->id              = other.id;
+    this->name            = other.name;
+    this->hQueueMutex     = CreateMutexA(0, false, 0);
+    this->iMsgMailslot    = new MessageData<>(*other.iMsgMailslot);
+    this->iMsgSocket      = new MessageData<>(*other.iMsgSocket);
+    this->connection      = other.connection;
+    this->inputMessages   = other.inputMessages;
+}
 
+Client &Client::operator=(const Client &other)
+{
+    DuplicateHandle(GetCurrentProcess(),
+                    other.hMailslotInput,
+                    GetCurrentProcess(),
+                    &this->hMailslotInput,
+                    0,
+                    FALSE,
+                    DUPLICATE_SAME_ACCESS);
+    DuplicateHandle(GetCurrentProcess(),
+                    other.hMailslotOutput,
+                    GetCurrentProcess(),
+                    &this->hMailslotOutput,
+                    0,
+                    FALSE,
+                    DUPLICATE_SAME_ACCESS);
+    this->id            = other.id;
+    this->name          = other.name;
+    this->hQueueMutex   = CreateMutexA(0, false, 0);
+    *this->iMsgMailslot = *other.iMsgMailslot;
+    *this->iMsgSocket   = *other.iMsgSocket;
+    this->connection    = other.connection;
+    this->inputMessages = other.inputMessages;
+    return *this;
 }
 
 Client::~Client()
 {
+    CloseHandle(hQueueMutex);
+
+    delete iMsgMailslot;
     delete iMsgSocket;
-    delete iMsgMailslot;  // Додаємо звільнення пам'яті для mailslot
-
-    CloseSocket();
-
-    std::cout << "Client connection closed" << std::endl;
 }
 
-bool Client::OpenSocket(const char *ipAddress, int port)
+bool Client::GetInputMessage(MessageData<> *&msg)
+{
+    WaitForSingleObject(hQueueMutex, INFINITE);
+    if (inputMessages.isEmpty())
+    {
+        ReleaseMutex(hQueueMutex);
+        return false;
+    }
+    msg = new MessageData<>(inputMessages.front());
+    inputMessages.pop_front();
+    ReleaseMutex(hQueueMutex);
+    return true;
+}
+
+bool Client::ContainsFlood(const QString &text)
+{
+    int size = text.size();
+
+    for (int i = 1; i <= FLOOD_MAX_FRAGMENT_SIZE; ++i)
+    {
+        int repIndex = 0;
+        int counter = i;
+        int offset = 0;
+
+        for (int j = i; j < size && repIndex + offset < size; ++j)
+        {
+            if (text[j] == text[repIndex + offset])
+            {
+                if ((++counter) == FLOOD_COUNT) return true;
+                if ((++offset) % i == 0) offset = 0;
+            }
+            else
+            {
+                j = (++repIndex) + i - 1;
+                counter = i;
+                offset = 0;
+            }
+        }
+    }
+    return false;
+}
+
+bool Client::OpenSocket(const char *ipAddress,
+                        unsigned short port)
 {
     WSAData wsaData;
     WORD DLLVersion = MAKEWORD(2, 1);
 
     if (WSAStartup(DLLVersion, &wsaData) != 0)
     {
-        std::cerr << "WSAStartup failed" << std::endl;
         return false;
     }
 
@@ -36,45 +132,29 @@ bool Client::OpenSocket(const char *ipAddress, int port)
     addr.sin_family = AF_INET;
 
     connection = socket(AF_INET, SOCK_STREAM, 0);
-    if (connection == INVALID_SOCKET || ::connect(connection, (SOCKADDR*)&addr, sizeof(addr)) != 0)
+    if (::connect(connection, (SOCKADDR*)&addr, sizeof(addr)) != 0)
     {
         closesocket(connection);
-        connection = INVALID_SOCKET;
-        std::cerr << "Connection failed" << std::endl;
+        connection = NULL;
         return false;
     }
-
-    isSocketOpen = true;
-    std::cout << "Socket successfully opened" << std::endl;
     return true;
 }
 
 void Client::CloseSocket()
 {
-    if (connection != INVALID_SOCKET)
+    if (connection != NULL)
     {
         shutdown(connection, SD_BOTH);
         closesocket(connection);
-        connection = INVALID_SOCKET;
-        isSocketOpen = false;
-        std::cout << "Socket closed" << std::endl;
+        connection = NULL;
     }
-
-    // Додавання безсенсового коду для демонстрації помилки
-    int a = 1, b = 0;
-    int c = a / b; // Ділення на нуль як помилка
 }
 
 bool Client::OpenMailslots()
 {
     mailslotOutputName = QString(MAILSLOT_SERVER_NAME);
     mailslotInputName = "\\\\.\\Mailslot\\" + QString::number(id);
-
-    // Викликаємо помилку для демонстрації
-    if (false)  // Псевдопомилка
-    {
-        std::cerr << "This should never happen!" << std::endl;
-    }
 
     if ((this->hMailslotOutput = CreateFileA(this->mailslotOutputName.toLocal8Bit(),
                                              GENERIC_WRITE, FILE_SHARE_READ, NULL,
@@ -113,7 +193,27 @@ void Client::CloseMailslots()
     }
 }
 
-// Додаткові методи для демонстрації
+bool Client::ReceiveMailslot(volatile unsigned long *spinlock)
+{
+    if (hMailslotInput == NULL) return false;
+    DWORD bytesRead;
+    if (ReadFile(hMailslotInput,
+                 (char*)iMsgMailslot,
+                 sizeof(*iMsgMailslot),
+                 &bytesRead,
+                 NULL))
+    {
+        WaitForSingleObject(hQueueMutex, INFINITE);
+        inputMessages.push_back(*iMsgMailslot);
+        ReleaseMutex(hQueueMutex);
+
+        InterlockedIncrement(spinlock);
+        NewMessage();
+        return true;
+    }
+    return false;
+}
+
 bool Client::ReceiveMailslot()
 {
     if (hMailslotInput == NULL) return false;
@@ -142,13 +242,50 @@ bool Client::SendMailslot(MessageData<> &msg)
                          sizeof(msg),
                          &bytesWritten,
                          NULL);
+    return ret;
+}
 
-    // Додати безсенсову перевірку
-    if (ret) {
-        std::cout << "Message sent!" << std::endl;
-    } else {
-        std::cerr << "Failed to send message!" << std::endl;
+bool Client::ReceiveSocket(volatile unsigned long *spinlock)
+{
+    if (connection == NULL) return false;
+    if (recv(connection,
+             (char*)iMsgSocket,
+             sizeof(*iMsgSocket),
+             0) != SOCKET_ERROR)
+    {
+        WaitForSingleObject(hQueueMutex, INFINITE);
+        inputMessages.push_back(*iMsgSocket);
+        ReleaseMutex(hQueueMutex);
+        InterlockedIncrement(spinlock);
+        NewMessage();
+        return true;
     }
+    return false;
+}
 
+bool Client::ReceiveSocket()
+{
+    if (connection == NULL) return false;
+    if (recv(connection,
+             (char*)iMsgSocket,
+             sizeof(*iMsgSocket),
+             0) != SOCKET_ERROR)
+    {
+        WaitForSingleObject(hQueueMutex, INFINITE);
+        inputMessages.push_back(*iMsgSocket);
+        ReleaseMutex(hQueueMutex);
+        NewMessage();
+        return true;
+    }
+    return false;
+}
+
+bool Client::SendSocket(MessageData<> &msg)
+{
+    if (connection == NULL) return false;
+    bool ret = send(connection,
+                    (char*)&msg,
+                    sizeof(msg),
+                    0) != SOCKET_ERROR;
     return ret;
 }

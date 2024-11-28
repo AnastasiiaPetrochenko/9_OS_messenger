@@ -30,18 +30,17 @@ class Client : public QObject
 {
     Q_OBJECT
 private:
-    MessageData<> *iMsgMailslot, *iMsgSocket;  // Used for both mailslot and socket communication
-    QQueue<MessageData<>> inputMessages;  // Queue to store incoming messages
-    SOCKET connection;  // Socket for communication
-    HANDLE hMailslotOutput;  // Handle for output mailslot
-    HANDLE hMailslotInput;  // Handle for input mailslot
-    HANDLE hQueueMutex;  // Mutex for synchronizing access to message queue
-    QString mailslotOutputName;  // Name of the output mailslot
-    QString mailslotInputName;  // Name of the input mailslot
-    id_t id;  // Client ID
-    QString name;  // Client's name
-    bool isSocketOpen;  // Flag to track socket connection status
-    bool isMailslotOpen;  // Flag to track mailslot connection status
+    MessageData<> *iMsgMailslot, *iMsgSocket;
+
+    QQueue<MessageData<>> inputMessages;
+    SOCKET connection;
+    HANDLE hMailslotOutput;
+    HANDLE hMailslotInput;
+    HANDLE hQueueMutex;
+    QString mailslotOutputName;
+    QString mailslotInputName;
+    id_t id;
+    QString name;
 
 public:
     Client(id_t id, const QString &name);
@@ -61,26 +60,40 @@ public:
     // Returns true if text contains flood (repeating text)
     static bool ContainsFlood(const QString &text);
 
-    // Socket-related methods
-    bool OpenSocket(const char *ipAddress = LOCAL_IP_ADDRESS, unsigned short port = DEFAULT_PORT);
+    // Returns true if socket was connected successfully
+    bool OpenSocket(const char *ipAddress = LOCAL_IP_ADDRESS,
+                    unsigned short port = DEFAULT_PORT);
+
+    // Close actual socket. If socket isn't connected, it will be ignored
     void CloseSocket();
-    bool ReceiveSocket(MessageData<> *&msg);
-    int SendSocket(MessageData<> &msg);
 
-    // Mailslot-related methods
-    bool OpenMailslots();  // Open input and output mailslots
-    void CloseMailslots();  // Close input and output mailslots
-    bool ReceiveMailslot();  // Receive message from mailslot
-    bool SendMailslot(MessageData<> &msg);  // Send message via mailslot
+    // Returns true if input and output mailslots was successfully configured
+    bool OpenMailslots();
 
-    // Method to handle socket or mailslot communication
-    bool SendMessage(MessageData<> &msg, bool isMailslot);
+    // Close input and ouput mailslots. If mailslots aren't connected, it will be ignored
+    void CloseMailslots();
 
-    // Check if a specific Mailslot exists
-    bool CheckMailslotExistence(const QString &mailslotName);
+    // Receive message by mailslot, increment spinlock
+    // and emit NewMessage() signal (if received successfully)
+    bool ReceiveMailslot(volatile unsigned long *spinlock);
 
-    // Method to handle received messages
-    void ProcessReceivedMessage(const MessageData<> &msg);
+    // Receive message by mailslot and emit NewMessage() signal
+    // (if received successfully)
+    bool ReceiveMailslot();
+
+    // Send message oMsg by mailslot
+    bool SendMailslot(MessageData<> &msg);
+
+    // Receive message by socket, increment spinlock
+    // and emit NewMessage() signal (if received successfully)
+    bool ReceiveSocket(volatile unsigned long *spinlock);
+
+    // Receive message by socket and emit NewMessage() signal
+    // (if received successfully)
+    bool ReceiveSocket();
+
+    // Send message oMsg by socket
+    bool SendSocket(MessageData<> &msg);
 
 signals:
     // Signal to inform about adding new message to queue
