@@ -1,19 +1,46 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+volatile unsigned long spinlock = 0;
+
+__cdecl void MailslotListener(void *parameters)
+{
+    Client *client = (Client*)parameters;
+
+    while (true)
+    {
+        client->ReceiveMailslot(&spinlock);
+        while (spinlock);
+        Sleep(100);
+    }
+}
+
+__cdecl void SocketListener(void *parameters)
+{
+    Client *client = (Client*)parameters;
+
+    while (true)
+    {
+        client->ReceiveSocket(&spinlock);
+        while (spinlock);
+    }
+}
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
 
-    this->oMsg = new MessageData<>();
+    this->oMsg = new MessageData<>;
+    this->mailslotListener = NULL;
+    this->socketListener = NULL;
     this->setFixedSize(this->width(), this->height());
     ui->messageLineEdit->setMaxLength(oMsg->GetMessageSize());
     ui->ipLineEdit->setValidator(new QRegularExpressionValidator(
         QRegularExpression(R"(\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b)"),
-        ui->ipLineEdit
-        ));
+                                     ui->ipLineEdit
+                                     ));
     ui->portLineEdit->setValidator(new QIntValidator(0, 65535, ui->portLineEdit));
 
     bool ok;
@@ -32,6 +59,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->tabWidget->addTab(general->GetChat(), "General");
 
     ui->usernameLabel->setText("Name: " + client->GetName());
+    //ui->idLabel->setText("ID: " + QString::number(client->GetId()));
 }
 
 MainWindow::~MainWindow()
@@ -71,12 +99,12 @@ void MainWindow::HandleData()
             if (users.contains(iMsg->senderId))
             {
                 QTextEdit *chat = users[iMsg->recvId == 0
-                                            ? 0
-                                            : iMsg->senderId].GetChat();
+                                    ? 0
+                                    : iMsg->senderId].GetChat();
                 chat->append(users[iMsg->senderId].GetName()
-                             + ": "
-                             + QString(iMsg->msg)
-                             + "\n");
+                        + ": "
+                        + QString(iMsg->msg)
+                        + "\n");
                 ui->tabWidget->setCurrentWidget(chat);
             }
             break;
@@ -89,7 +117,7 @@ void MainWindow::HandleData()
                 users.erase(user);
             }
         }
-        break;
+            break;
 
         default:
             QMessageBox::information(this,
@@ -99,6 +127,7 @@ void MainWindow::HandleData()
         }
         delete iMsg;
     }
+    InterlockedDecrement(&spinlock);
 }
 
 void MainWindow::CriticalError(const QString &msg)
@@ -109,7 +138,21 @@ void MainWindow::CriticalError(const QString &msg)
 
 void MainWindow::TerminateThreads()
 {
+    if (mailslotListener != NULL)
+    {
+        TerminateThread(mailslotListener, 0);
+        WaitForSingleObject(mailslotListener, INFINITE);
+        CloseHandle(mailslotListener);
+        mailslotListener = NULL;
+    }
 
+    if (socketListener != NULL)
+    {
+        TerminateThread(socketListener, 0);
+        WaitForSingleObject(socketListener, INFINITE);
+        CloseHandle(socketListener);
+        socketListener = NULL;
+    }
 }
 
 QMap<id_t, User>::iterator MainWindow::GetCurrentUser()
@@ -141,10 +184,10 @@ void MainWindow::on_sendButton_clicked()
         QMessageBox::information(this,
                                  "Too long message",
                                  "Your message is too long ("
-                                     + QString::number(msg.size())
-                                     + " characters). Maximum message size: "
-                                     + QString::number(oMsg->GetMessageSize())
-                                     + " characters.");
+                                 + QString::number(msg.size())
+                                 + " characters). Maximum message size: "
+                                 + QString::number(oMsg->GetMessageSize())
+                                 + " characters.");
         return;
     }
 
@@ -162,7 +205,15 @@ void MainWindow::on_sendButton_clicked()
     oMsg->recvId = GetCurrentUser().key();
     oMsg->senderId = client->GetId();
 
-    bool ret = client->SendSocket(*oMsg);
+    bool ret = false;
+    if (ui->mailslotRadioButton->isChecked())
+    {
+        ret = client->SendMailslot(*oMsg);
+    }
+    else if (ui->socketRadioButton->isChecked())
+    {
+        ret = client->SendSocket(*oMsg);
+    }
 
     if (ret)
     {
@@ -182,20 +233,33 @@ void MainWindow::on_connectButton_clicked()
         if (client->OpenSocket(ui->ipLineEdit->text().toLocal8Bit(),
                                ui->portLineEdit->text().toUShort()))
         {
+            client->ReceiveSocket(&spinlock);
+            while (spinlock);
 
-            client->ReceiveSocket(oMsg);
+            if (!client->OpenMailslots())
+            {
+                oMsg->com = REMOVE_USER;
+                oMsg->senderId = client->GetId();
+                client->SendSocket(*oMsg);
+                client->CloseSocket();
+                return;
+            }
 
             oMsg->senderId = client->GetId();
             oMsg->com = NEW_USER;
             oMsg->SetMessage(client->GetName());
             client->SendSocket(*oMsg);
 
+            mailslotListener = (HANDLE)_beginthread(MailslotListener, 0, client);
+            socketListener = (HANDLE)_beginthread(SocketListener, 0, client);
+
             ui->ipLineEdit->setEnabled(false);
             ui->portLineEdit->setEnabled(false);
             ui->sendButton->setEnabled(true);
             ui->connectButton->setText("Disconnect");
             ui->idLabel->setText("ID: " + QString::number(client->GetId()));
-            ui->mailslotLabel->setText("Server: Unknown\nClient: Unknown");
+            ui->mailslotLabel->setText("Server: " + client->GetMailslotOutputName()
+                                       + "\nClient: " + client->GetMailslotInputName());
         }
     }
     else
@@ -206,6 +270,7 @@ void MainWindow::on_connectButton_clicked()
         oMsg->senderId = client->GetId();
         client->SendSocket(*oMsg);
 
+        client->CloseMailslots();
         client->CloseSocket();
 
         users.clear();

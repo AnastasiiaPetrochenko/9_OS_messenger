@@ -1,7 +1,7 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
-#include "datalib.h"
+#include "../DataLib/datalib.h"
 
 #include <winsock2.h>
 #include <iostream>
@@ -19,6 +19,7 @@
 #include <QString>
 #include <QQueue>
 
+#define MAILSLOT_SERVER_NAME "\\\\.\\Mailslot\\Server"
 #define LOCAL_IP_ADDRESS "127.0.0.1"
 #define DEFAULT_PORT 1111
 
@@ -29,14 +30,17 @@ class Client : public QObject
 {
     Q_OBJECT
 private:
-    MessageData<> *iMsgSocket;  // Used only for socket communication
+    MessageData<> *iMsgMailslot, *iMsgSocket;
 
-    QQueue<MessageData<>> inputMessages;  // Queue for incoming messages
-    SOCKET connection;  // Socket for communication
-    id_t id;  // Client ID
-    QString name;  // Client's name
-
-    // Mailslot-related variables
+    QQueue<MessageData<>> inputMessages;
+    SOCKET connection;
+    HANDLE hMailslotOutput;
+    HANDLE hMailslotInput;
+    HANDLE hQueueMutex;
+    QString mailslotOutputName;
+    QString mailslotInputName;
+    id_t id;
+    QString name;
 
 public:
     Client(id_t id, const QString &name);
@@ -47,20 +51,49 @@ public:
     inline void SetId(id_t id) { this->id = id; }
     inline id_t GetId() const { return id; }
     inline QString GetName() const { return name; }
+    inline QString GetMailslotOutputName() const { return mailslotOutputName; }
+    inline QString GetMailslotInputName() const { return mailslotInputName; }
 
-    // Take input message from queue
+    // Take input message from queue (returns true if queue contains message)
     bool GetInputMessage(MessageData<> *&msg);
 
     // Returns true if text contains flood (repeating text)
     static bool ContainsFlood(const QString &text);
 
-    // Socket-related methods
-    bool OpenSocket(const char *ipAddress = LOCAL_IP_ADDRESS, unsigned short port = DEFAULT_PORT);
-    void CloseSocket();
-    bool ReceiveSocket(MessageData<> *&msg);
-    int SendSocket(MessageData<> &msg);
+    // Returns true if socket was connected successfully
+    bool OpenSocket(const char *ipAddress = LOCAL_IP_ADDRESS,
+                    unsigned short port = DEFAULT_PORT);
 
-    // Mailslot-related methods
+    // Close actual socket. If socket isn't connected, it will be ignored
+    void CloseSocket();
+
+    // Returns true if input and output mailslots was successfully configured
+    bool OpenMailslots();
+
+    // Close input and ouput mailslots. If mailslots aren't connected, it will be ignored
+    void CloseMailslots();
+
+    // Receive message by mailslot, increment spinlock
+    // and emit NewMessage() signal (if received successfully)
+    bool ReceiveMailslot(volatile unsigned long *spinlock);
+
+    // Receive message by mailslot and emit NewMessage() signal
+    // (if received successfully)
+    bool ReceiveMailslot();
+
+    // Send message oMsg by mailslot
+    bool SendMailslot(MessageData<> &msg);
+
+    // Receive message by socket, increment spinlock
+    // and emit NewMessage() signal (if received successfully)
+    bool ReceiveSocket(volatile unsigned long *spinlock);
+
+    // Receive message by socket and emit NewMessage() signal
+    // (if received successfully)
+    bool ReceiveSocket();
+
+    // Send message oMsg by socket
+    bool SendSocket(MessageData<> &msg);
 
 signals:
     // Signal to inform about adding new message to queue

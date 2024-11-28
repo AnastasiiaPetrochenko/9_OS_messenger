@@ -11,6 +11,8 @@
 #include <QTextEdit>
 #include <QTimer>
 #include <QMap>
+#include <QVector>
+#include <QFile>
 #include <QValidator>
 
 #define UPDATE_TIME 100
@@ -42,6 +44,7 @@ private:
 
     QMap<id_t, User> users; // <tab_index, id>
 
+    HANDLE mailslotListener;
     HANDLE socketListener;
 
     void CriticalError(const QString &msg);
