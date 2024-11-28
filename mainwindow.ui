@@ -140,6 +140,19 @@ background-color: rgb(123, 193, 255);</string>
       <height>331</height>
      </rect>
     </property>
+    <property name="columnCount">
+     <number>2</number>
+    </property>
+    <column>
+     <property name="text">
+      <string>Name</string>
+     </property>
+    </column>
+    <column>
+     <property name="text">
+      <string>Text</string>
+     </property>
+    </column>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
@@ -148,7 +161,7 @@ background-color: rgb(123, 193, 255);</string>
      <x>0</x>
      <y>0</y>
      <width>800</width>
-     <height>26</height>
+     <height>22</height>
     </rect>
    </property>
   </widget>
